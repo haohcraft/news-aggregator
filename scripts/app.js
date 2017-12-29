@@ -62,27 +62,19 @@ APP.Main = (function() {
    * probably in a requestAnimationFrame callback.
    */
   function onStoryData (key, details) {
-
+    console.log('key: ', key)
+    console.log('details: ', details)
     // This seems odd. Surely we could just select the story
     // directly rather than looping through all of them.
-    var storyElements = document.querySelectorAll('.story');
+    var story = document.getElementById('s-' +  key);
+    details.time *= 1000;
+    var html = storyTemplate(details);
+    story.innerHTML = html;
+    story.addEventListener('click', onStoryClick.bind(this, details));
 
-    for (var i = 0; i < storyElements.length; i++) {
+    // Tick down. When zero we can batch in the next load.
+    storyLoadCount--;
 
-      if (storyElements[i].getAttribute('id') === 's-' + key) {
-
-        details.time *= 1000;
-        var story = storyElements[i];
-        var html = storyTemplate(details);
-        story.innerHTML = html;
-        story.addEventListener('click', onStoryClick.bind(this, details));
-        story.classList.add('clickable');
-
-        // Tick down. When zero we can batch in the next load.
-        storyLoadCount--;
-
-      }
-    }
 
     // Colorize on complete.
     if (storyLoadCount === 0)
@@ -94,7 +86,7 @@ APP.Main = (function() {
     var storyDetails = $('sd-' + details.id);
 
     // Wait a little time then show the story details.
-    setTimeout(showStory.bind(this, details.id), 60);
+    setTimeout(showStory.bind(this, details.id), 0);
 
     // Create and append the story. A visual change...
     // perhaps that should be in a requestAnimationFrame?
@@ -170,6 +162,7 @@ APP.Main = (function() {
 
     var storyDetails = $('#sd-' + id);
     var left = null;
+    var storyDetailsPosition = storyDetails.getBoundingClientRect();
 
     if (!storyDetails)
       return;
@@ -180,7 +173,6 @@ APP.Main = (function() {
     function animate () {
 
       // Find out where it currently is.
-      var storyDetailsPosition = storyDetails.getBoundingClientRect();
 
       // Set the left value if we don't have one already.
       if (left === null)
@@ -214,7 +206,8 @@ APP.Main = (function() {
 
     var storyDetails = $('#sd-' + id);
     var left = 0;
-
+    var storyDetailsPosition = storyDetails.getBoundingClientRect();
+    
     document.body.classList.remove('details-active');
     storyDetails.style.opacity = 0;
 
@@ -222,7 +215,6 @@ APP.Main = (function() {
 
       // Find out where it currently is.
       var mainPosition = main.getBoundingClientRect();
-      var storyDetailsPosition = storyDetails.getBoundingClientRect();
       var target = mainPosition.width + 100;
 
       // Now figure out where it needs to go.
@@ -258,28 +250,31 @@ APP.Main = (function() {
 
     // It does seem awfully broad to change all the
     // colors every time!
+    var mainHeight = main.offsetHeight;
+    var bodyPosition = document.body.getBoundingClientRect();
+    var scorePositions = Array.prototype.slice.call(storyElements).map(function(el) {
+      return el.getBoundingClientRect()
+    });
     for (var s = 0; s < storyElements.length; s++) {
 
       var story = storyElements[s];
       var score = story.querySelector('.story__score');
       var title = story.querySelector('.story__title');
+      var scorePosition = scorePositions[s];
 
       // Base the scale on the y position of the score.
-      var height = main.offsetHeight;
-      var mainPosition = main.getBoundingClientRect();
-      var scoreLocation = score.getBoundingClientRect().top -
-          document.body.getBoundingClientRect().top;
+      var height = mainHeight;
+      var scoreLocation = scorePosition.top - bodyPosition.top;
       var scale = Math.min(1, 1 - (0.05 * ((scoreLocation - 170) / height)));
       var opacity = Math.min(1, 1 - (0.5 * ((scoreLocation - 170) / height)));
+      var newScoreWidth = scale * 40;
 
-      score.style.width = (scale * 40) + 'px';
+      score.style.width = newScoreWidth  + 'px' ;
       score.style.height = (scale * 40) + 'px';
       score.style.lineHeight = (scale * 40) + 'px';
 
       // Now figure out how wide it is and use that to saturate it.
-      scoreLocation = score.getBoundingClientRect();
-      var saturation = (100 * ((scoreLocation.width - 38) / 2));
-
+      var saturation = (100 * ((newScoreWidth - 38) / 2));
       score.style.backgroundColor = 'hsl(42, ' + saturation + '%, 50%)';
       title.style.opacity = opacity;
     }
@@ -299,7 +294,11 @@ APP.Main = (function() {
 
     var header = $('header');
     var headerTitles = header.querySelector('.header__title-wrapper');
-    var scrollTopCapped = Math.min(70, main.scrollTop);
+    var mainScroppTop = main.scrollTop;
+    var mainScrollHeight = main.scrollHeight;
+    var mainOffsetHeight = main.offsetHeight;
+    
+    var scrollTopCapped = Math.min(70, mainScroppTop);
     var scaleString = 'scale(' + (1 - (scrollTopCapped / 300)) + ')';
 
     colorizeAndScaleStories();
@@ -309,15 +308,15 @@ APP.Main = (function() {
     headerTitles.style.transform = scaleString;
 
     // Add a shadow to the header.
-    if (main.scrollTop > 70)
-      document.body.classList.add('raised');
+    if (mainScroppTop > 70)
+      header.classList.add('raised');
     else
-      document.body.classList.remove('raised');
+      header.classList.remove('raised');
 
     // Check if we need to load the next batch of stories.
-    var loadThreshold = (main.scrollHeight - main.offsetHeight -
+    var loadThreshold = (mainScrollHeight - mainOffsetHeight -
         LAZY_LOAD_THRESHOLD);
-    if (main.scrollTop > loadThreshold)
+    if (mainScroppTop > loadThreshold)
       loadStoryBatch();
   });
 
